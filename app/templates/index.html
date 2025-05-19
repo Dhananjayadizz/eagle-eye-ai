@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eagle Eye - Vehicle Detection & Analysis Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Eagle Eye</a>
+        </div>
+    </nav>
+
+    <div class="container mt-3">
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs mb-4" id="dashboardTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="livestream-tab" data-bs-toggle="tab" data-bs-target="#livestream" type="button" role="tab">Live Streaming</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="critical-tab" data-bs-toggle="tab" data-bs-target="#critical" type="button" role="tab">Critical Event Analysis</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="environment-tab" data-bs-toggle="tab" data-bs-target="#environment" type="button" role="tab">Environment Analysis</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="blockchain-tab" data-bs-toggle="tab" data-bs-target="#blockchain" type="button" role="tab">Blockchain Store</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pedestrian-tab" data-bs-toggle="tab" data-bs-target="#pedestrian" type="button" role="tab">Pedestrian Analysis</button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="dashboardTabsContent">
+            <!-- Live Streaming Tab -->
+            <div class="tab-pane fade show active" id="livestream" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Live Camera Feed</h5>
+                                <div id="live-video-container" class="video-container">
+                                    <p class="text-center text-muted">Select a camera source to begin</p>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="form-group mb-3">
+                                        <label for="camera-source" class="form-label">Camera Source</label>
+                                        <select id="camera-source" class="form-select">
+                                            <option value="">Select a camera...</option>
+                                            <option value="webcam">Webcam</option>
+                                            <option value="external">External Camera</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="start-camera" class="btn btn-primary">Start Camera</button>
+                                    <button type="button" id="stop-camera" class="btn btn-danger" disabled>Stop Camera</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Live Events Log</h5>
+                                <div id="events-log" class="events-log"></div>
+                            </div>
+                        </div>
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">GPS Data</h5>
+                                <div id="gps-data" class="text-center">Waiting for GPS data...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical Event Analysis Tab -->
+            <div class="tab-pane fade" id="critical" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title">Video Analysis</h5>
+                                <form id="upload-form" class="mb-4">
+                                    <div class="form-group">
+                                        <label for="video-input" class="form-label">Upload Video for Analysis</label>
+                                        <input type="file" id="video-input" class="form-control" accept="video/*" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary mt-2">Upload Video</button>
+                                    <button type="button" id="start-button" class="btn btn-success mt-2" disabled>Start Analysis</button>
+                                </form>
+                                <div id="upload-loading-bar" class="progress" style="display: none;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%"></div>
+                                </div>
+                                <div id="uploaded-video-container" class="video-container">
+                                    <p class="text-center text-muted">Upload a video above to see the feed here.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title">Export Options</h5>
+                                <button onclick="exportCriticalEvents()" class="btn btn-primary w-100 mb-2">Export Critical Events</button>
+                                <button onclick="clearExportedFiles()" class="btn btn-danger w-100">Clear Exported Files</button>
+                            </div>
+                        </div>
+                         <div class="card">
+                             <div class="card-body">
+                                <h5 class="card-title">Critical Events Table</h5>
+                                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                    <table class="table table-striped table-hover table-sm critical-events-table-compact">
+                                        <thead>
+                                            <tr>
+                                                <th>Time</th>
+                                                <th>Event Type</th>
+                                                <th>Vehicle ID</th>
+                                                <th>Status</th>
+                                                <th>TTC</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="critical-events-table">
+                                            <!-- Events will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment Analysis Tab -->
+            <div class="tab-pane fade" id="environment" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Environment Analysis</h5>
+                        <p class="text-muted">Environment analysis features coming soon.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blockchain Store Tab -->
+            <div class="tab-pane fade" id="blockchain" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Blockchain Store</h5>
+                        <!-- Upload Section -->
+                        <div class="mb-4">
+                            <h6>Upload File to Blockchain</h6>
+                            <input type="file" id="blockchain-file-input" class="form-control mb-2">
+                            <button id="blockchain-upload-button" class="btn btn-primary">Upload to Blockchain</button>
+                            <div id="blockchain-upload-status" class="mt-2"></div>
+                        </div>
+
+                        <!-- File List Section -->
+                        <div>
+                            <h6>Files Stored on Blockchain</h6>
+                            <button id="blockchain-refresh-button" class="btn btn-secondary btn-sm mb-2">Refresh List</button>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-striped table-hover table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>File Name</th>
+                                            <th>Timestamp</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="blockchain-files-table">
+                                        <!-- Files will be loaded here by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="blockchain-list-status" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pedestrian Analysis Tab -->
+            <div class="tab-pane fade" id="pedestrian" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Pedestrian Analysis</h5>
+                        <p class="text-muted">Pedestrian analysis features coming soon.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> 

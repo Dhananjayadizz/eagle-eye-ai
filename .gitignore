@@ -1,0 +1,41 @@
+# Ignore dataset CSV files
+*.csv
+
+# Ignore database files
+*.db
+*.sqlite
+
+# Ignore log files
+*.log
+logs/
+*.txt
+
+# Ignore virtual environment
+.venv/
+venv/
+env/
+
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore model weights and large AI files
+*.onnx
+*.trt
+*.pkl
+*.h5
+*.pth
+
+# Ignore uploaded and processed media files
+uploads/
+static/uploads/
+uploaded_video.mp4
+
+# Ignore IDE and system-specific files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+node_modules
