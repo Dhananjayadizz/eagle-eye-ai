@@ -21,6 +21,30 @@ let currentVideoId = null;
 let criticalEvents = [];
 let stream = null;
 
+async function populateCameraOptions() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ video: true }); // ask permission
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        cameraSource.innerHTML = '<option value="">Select a camera...</option>';
+
+        let index = 1;
+        devices.forEach(device => {
+            if (device.kind === 'videoinput') {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `Camera ${index++}`;
+                cameraSource.appendChild(option);
+            }
+        });
+    } catch (err) {
+        console.error('Camera permission error:', err);
+        showAlert('Camera access required to list devices.', 'danger');
+    }
+}
+
+
+
 // Blockchain Store Elements
 const blockchainFileInput = document.getElementById('blockchain-file-input');
 const blockchainUploadButton = document.getElementById('blockchain-upload-button');
@@ -92,56 +116,96 @@ uploadForm.addEventListener('submit', async (e) => {
 });
 
 // Start video analysis (in Critical Event Analysis tab)
-startButton.addEventListener('click', () => {
-    if (!currentVideoId) {
-        showAlert('Please upload a video first', 'danger');
-        return;
-    }
+// startButton.addEventListener('click', () => {
+//     if (!currentVideoId) {
+//         showAlert('Please upload a video first', 'danger');
+//         return;
+//     }
 
-    // Start processing
-    socket.emit('start_processing', { video_id: currentVideoId });
-});
+//     // Start processing
+//     socket.emit('start_processing', { video_id: currentVideoId });
+// });
 
-// Live camera handling
 startCameraButton.addEventListener('click', async () => {
-    const source = cameraSource.value;
-    if (!source) {
-        showAlert('Please select a camera source', 'warning');
+    const selectedDeviceId = cameraSource.value;
+    if (!selectedDeviceId) {
+        showAlert('Please select a camera device', 'warning');
         return;
     }
 
     try {
-        // Request camera access
         const constraints = {
             video: {
-                deviceId: source === 'external' ? { exact: 'external' } : undefined
+                deviceId: { exact: selectedDeviceId },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
             }
         };
-        
+
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        // Create video element
+
         const video = document.createElement('video');
         video.id = 'live-video-feed';
         video.autoplay = true;
         video.playsInline = true;
         video.srcObject = stream;
+
         liveVideoContainer.innerHTML = '';
         liveVideoContainer.appendChild(video);
 
-        // Start processing live feed
-        socket.emit('start_live_processing', { source: source });
-        
-        // Update UI
+        socket.emit('start_live_processing', { deviceId: selectedDeviceId });
+
         startCameraButton.disabled = true;
         stopCameraButton.disabled = false;
         cameraSource.disabled = true;
-        
+
         showAlert('Live camera feed started', 'success');
     } catch (error) {
         showAlert('Error accessing camera: ' + error.message, 'danger');
     }
 });
+
+
+// Live camera handling
+// startCameraButton.addEventListener('click', async () => {
+//     const source = cameraSource.value;
+//     if (!source) {
+//         showAlert('Please select a camera source', 'warning');
+//         return;
+//     }
+
+//     try {
+//         // Request camera access
+//         const constraints = {
+//             video: {
+//                 deviceId: source === 'external' ? { exact: 'external' } : undefined
+//             }
+//         };
+        
+//         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+//         // Create video element
+//         const video = document.createElement('video');
+//         video.id = 'live-video-feed';
+//         video.autoplay = true;
+//         video.playsInline = true;
+//         video.srcObject = stream;
+//         liveVideoContainer.innerHTML = '';
+//         liveVideoContainer.appendChild(video);
+
+//         // Start processing live feed
+//         socket.emit('start_live_processing', { source: source });
+        
+//         // Update UI
+//         startCameraButton.disabled = true;
+//         stopCameraButton.disabled = false;
+//         cameraSource.disabled = true;
+        
+//         showAlert('Live camera feed started', 'success');
+//     } catch (error) {
+//         showAlert('Error accessing camera: ' + error.message, 'danger');
+//     }
+// });
 
 stopCameraButton.addEventListener('click', () => {
     if (stream) {
@@ -383,10 +447,12 @@ document.querySelector('#blockchain-tab').addEventListener('shown.bs.tab', () =>
 document.addEventListener('DOMContentLoaded', () => {
     startButton.disabled = true;
     stopCameraButton.disabled = true;
-    
+
     // Initialize Bootstrap tabs
     const tabElList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tab"]'));
     tabElList.forEach(tabEl => {
         new bootstrap.Tab(tabEl);
     });
-}); 
+
+    populateCameraOptions(); // <== call this to populate the camera dropdown
+});
