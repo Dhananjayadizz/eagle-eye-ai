@@ -15,8 +15,9 @@ body {
 /* Navigation */
 .navbar {
     background-color: #2c3e50;
-    padding: 0.2rem 1rem;
+    padding: 0rem 0rem;
     color: white;
+
 }
 
 .navbar-brand {
@@ -25,6 +26,102 @@ body {
     color: white;
     text-decoration: none;
 }
+
+/* Custom Navbar Styles */
+.custom-navbar {
+    background-color: white !important; /* Override any dark background */
+    color: #283fa3 !important;             /* Dark text */
+    padding: 0;               /* Keep it compact */
+    box-shadow: 0 1px 3px rgba(73, 90, 116, 0.1); /* Optional: subtle shadow */
+}
+
+.custom-navbar .container {
+    display: flex;
+    justify-content: space-between; /* Distribute space between items */
+    align-items: center;
+}
+
+.custom-navbar .navbar-brand {
+    background: linear-gradient(90deg, #8e2de2, #4a00e0); /* Purple to blue gradient */
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+    font-weight: bold;
+    margin-left: auto;
+    margin-right: 0;
+    font-family: 'Poppins', sans-serif;
+}
+
+
+.custom-navbar {
+    position: relative;
+    background-color: white !important;
+    color: #283fa3 !important;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(73, 90, 116, 0.1);
+}
+
+.custom-navbar::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px; /* Thin line */
+    width: 100%;
+    background: linear-gradient(90deg, #8e2de2, #a4508b, #ff6ec4, #4a00e0, #00c3ff); /* Gradient colors */
+}
+
+
+
+.gradient-text,
+.custom-navbar .navbar-brand {
+    background: linear-gradient(
+        90deg,
+        #8e2de2,
+        #a4508b,
+        #ff6ec4,
+        #4a00e0,
+        #00c3ff
+    ); /* Vibrant multi-color gradient */
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.5rem;
+}
+
+
+.gradient-icon {
+    font-size: 1.5rem;
+    background: inherit;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+}
+
+.icon-img {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+
+
+.custom-navbar .navbar-left {
+    /* This is a placeholder for notifications/messages */
+    /* You can add content here in the HTML */
+    color: white;
+}
+
+
 
 /* Cards */
 .card {
@@ -251,4 +348,9 @@ body {
     padding: 10px; /* Add some padding */
     border-radius: 4px; /* Optional: rounded corners for the box */
     display: inline-block; /* Make the background and border wrap the text */
+}
+
+#uploaded-video-container {
+    background-color: white;
+    padding: 10px; /* Add some padding for better appearance */
 } 
