@@ -5,6 +5,7 @@ body {
     padding: 0;
     background-color: #303033; /* Dark background */
     color: #e0e0e0; /* Light text */
+    padding-top: 60px; /* Add padding equal to navbar height */
 }
 
 .container {
@@ -19,6 +20,11 @@ body {
     padding: 0rem 0rem;
     color: white;
     box-shadow: 0 1px 3px rgba(0,0,0,0.3); /* Darker shadow for contrast */
+    position: fixed; /* Make navbar fixed */
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000; /* Ensure navbar stays on top */
 }
 
 .navbar-brand {
@@ -34,6 +40,11 @@ body {
     color: #e0e0e0 !important;             /* Light text */
     padding: 0;               /* Keep it compact */
     box-shadow: 0 1px 3px rgba(0,0,0,0.3); /* Optional: subtle shadow */
+    position: fixed; /* Make navbar fixed */
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000; /* Ensure navbar stays on top */
 }
 
 .custom-navbar .container {
