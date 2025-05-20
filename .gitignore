@@ -8,7 +8,7 @@
 # Ignore log files
 *.log
 logs/
-*.txt
+
 
 # Ignore virtual environment
 .venv/
