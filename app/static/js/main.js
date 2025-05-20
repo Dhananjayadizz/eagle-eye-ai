@@ -21,6 +21,10 @@ let currentVideoId = null;
 let criticalEvents = [];
 let stream = null;
 
+// Add these functions after the existing DOM Elements
+const storedVideosList = null;
+const clearVideosButton = null;
+
 async function populateCameraOptions() {
     try {
         await navigator.mediaDevices.getUserMedia({ video: true }); // ask permission
@@ -43,8 +47,6 @@ async function populateCameraOptions() {
     }
 }
 
-
-
 // Blockchain Store Elements
 const blockchainFileInput = document.getElementById('blockchain-file-input');
 const blockchainUploadButton = document.getElementById('blockchain-upload-button');
@@ -59,6 +61,12 @@ uploadForm.addEventListener('submit', async (e) => {
     const file = videoInput.files[0];
     if (!file) {
         showAlert('Please select a video file to upload.', 'warning');
+        return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+        showAlert('Please select a valid video file.', 'warning');
         return;
     }
 
@@ -83,32 +91,41 @@ uploadForm.addEventListener('submit', async (e) => {
 
     // Load event listener (upload complete)
     xhr.onload = () => {
-        uploadLoadingBar.style.display = 'none'; // Hide loading bar
+        uploadLoadingBar.style.display = 'none';
         if (xhr.status === 200) {
             const data = JSON.parse(xhr.responseText);
             if (data.error) {
                 showAlert(data.error, 'danger');
             } else {
                 currentVideoId = data.video_id;
-                showAlert('Video uploaded successfully!', 'success');
-                startButton.disabled = false;
-                displayUploadedVideoFeed(currentVideoId);
+                showAlert('Video uploaded successfully! Starting analysis...', 'success');
+                displayUploadedVideoFeed();
+                
+                // Automatically start processing after successful upload
+                socket.emit('start_processing', { video_id: currentVideoId });
             }
         } else {
-            showAlert('Error uploading video. Status: ' + xhr.status, 'danger');
+            let errorMessage = 'Error uploading video. ';
+            try {
+                const data = JSON.parse(xhr.responseText);
+                errorMessage += data.error || `Status: ${xhr.status}`;
+            } catch (e) {
+                errorMessage += `Status: ${xhr.status}`;
+            }
+            showAlert(errorMessage, 'danger');
         }
     };
 
     // Error event listener
     xhr.onerror = () => {
-        uploadLoadingBar.style.display = 'none'; // Hide loading bar
-        showAlert('Network error during video upload.', 'danger');
+        uploadLoadingBar.style.display = 'none';
+        showAlert('Network error during video upload. Please check your connection and try again.', 'danger');
     };
 
     // Abort event listener
     xhr.onabort = () => {
-        uploadLoadingBar.style.display = 'none'; // Hide loading bar
-        showAlert('Video upload aborted.', 'warning');
+        uploadLoadingBar.style.display = 'none';
+        showAlert('Video upload was cancelled.', 'warning');
     };
 
     xhr.open('POST', '/upload');
@@ -238,15 +255,58 @@ socket.on('disconnect', () => {
 });
 
 socket.on('new_event', (event) => {
-    addEventToLog(event);
-    if (event.is_critical) {
-        addCriticalEvent(event);
+    // Add all events to the appropriate real-time analysis table based on active tab
+    const criticalTab = document.getElementById('critical-tab');
+    const liveTab = document.getElementById('livestream-tab');
+    
+    let targetTableBody = null;
+    if (criticalTab && criticalTab.classList.contains('active') && criticalEventsTable) {
+        targetTableBody = criticalEventsTable.querySelector('tbody');
+    } else if (liveTab && liveTab.classList.contains('active') && liveEventsTableBody) {
+        targetTableBody = liveEventsTableBody;
     }
+
+    if (!targetTableBody) {
+        // If no active tab with a corresponding table is found, do nothing
+        return;
+    }
+
+    const row = document.createElement('tr');
+    
+    // Determine row class based on event type and motion status
+    let rowClass = '';
+    if (event.motion_status === 'Collided' || event.motion_status === 'Harsh Braking' || event.motion_status === 'Sudden Stop Detected!' || event.event_type === 'Near Collision') {
+        rowClass = 'table-danger'; // Red for critical motion statuses or near collision
+    } else if (event.event_type && event.event_type.includes('Anomaly')) {
+        rowClass = 'table-warning'; // Yellow for anomalies
+    } else if (event.event_type === 'Frontier') {
+        rowClass = 'table-info'; // Light blue for non-critical frontier vehicles
+    } else { // Default case for 'Tracked' and other events
+         rowClass = 'table-active'; // Gray for regular tracked vehicles
+    }
+    row.className = rowClass;
+
+    row.innerHTML = `
+        <td>${event.id !== undefined ? event.id : 'N/A'}</td>
+        <td>${event.timestamp !== undefined ? event.timestamp : 'N/A'}</td>
+        <td>${event.event_type !== undefined ? event.event_type : 'N/A'}</td>
+        <td>${event.vehicle_id !== undefined ? event.vehicle_id : 'N/A'}</td>
+        <td>${event.motion_status !== undefined ? event.motion_status : 'N/A'}</td>
+        <td>${event.ttc !== undefined && event.ttc !== null && event.ttc !== 'N/A' ? parseFloat(event.ttc).toFixed(2) : 'N/A'}</td>
+        <td>${event.latitude !== undefined && event.longitude !== undefined ? `${parseFloat(event.latitude).toFixed(6)}, ${parseFloat(event.longitude).toFixed(6)}` : 'N/A'}</td>
+    `;
+    targetTableBody.insertBefore(row, targetTableBody.firstChild); // Add to the top of the table
 });
 
 socket.on('gps_update', (data) => {
-    updateGPSData(data);
+    console.log("📡 GPS Data Received:", data);  // <== ADD THIS LINE
+    // Only update GPS data display if the Live Streaming tab is active
+    const liveTab = document.getElementById('livestream-tab');
+    if (liveTab && liveTab.classList.contains('active')) {
+        updateGPSData(data);
+    }
 });
+
 
 socket.on('error', (data) => {
     showAlert(data.message, 'danger');
@@ -314,14 +374,14 @@ function showAlert(message, type) {
     }, 5000);
 }
 
-function displayUploadedVideoFeed(videoId) {
+function displayUploadedVideoFeed() {
     // Clear previous video feed
     uploadedVideoContainer.innerHTML = '';
     
     // Create video element
     const video = document.createElement('img');
     video.id = 'uploaded-video-feed';
-    video.src = `/video_feed/${videoId}`;
+    video.src = '/video_feed';  // Updated to use the new endpoint
     uploadedVideoContainer.appendChild(video);
 }
 
@@ -445,7 +505,8 @@ document.querySelector('#blockchain-tab').addEventListener('shown.bs.tab', () =>
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    startButton.disabled = true;
+    // Remove this line as the start button is removed
+    // startButton.disabled = true;
     stopCameraButton.disabled = true;
 
     // Initialize Bootstrap tabs
@@ -455,4 +516,106 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     populateCameraOptions(); // <== call this to populate the camera dropdown
+
+    // Get the critical events table body element once the DOM is loaded
+    const criticalEventsTableBody = document.getElementById('critical-events-table');
+    // Add a check in case the element is not found for some reason
+    if (!criticalEventsTableBody) {
+        console.error("Error: Table body with ID 'critical-events-table' not found.");
+        // Do not attach the new_event listener if the table body is not found
+        // return; // Keep listening for events even if critical analysis table is not present
+    }
+
+    // Get the live events table body element once the DOM is loaded
+    const liveEventsTableBody = document.getElementById('live-events-table-body');
+     if (!liveEventsTableBody) {
+        console.error("Error: Table body with ID 'live-events-table-body' not found.");
+        // Keep listening for events even if live analysis table is not present
+    }
+
+    // Move Socket.IO event handlers inside DOMContentLoaded
+    // Socket.IO event handlers
+    socket.on('connect', () => {
+        console.log('Connected to server');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+        showAlert('Connection lost. Please refresh the page.', 'danger');
+    });
+
+    socket.on('new_event', (event) => {
+        // Add all events to the appropriate real-time analysis table based on active tab
+        const criticalTab = document.getElementById('critical-tab');
+        const liveTab = document.getElementById('livestream-tab');
+        
+        let targetTableBody = null;
+        if (criticalTab && criticalTab.classList.contains('active') && criticalEventsTableBody) {
+            targetTableBody = criticalEventsTableBody;
+        } else if (liveTab && liveTab.classList.contains('active') && liveEventsTableBody) {
+            targetTableBody = liveEventsTableBody;
+        }
+
+        if (!targetTableBody) {
+            // If no active tab with a corresponding table is found, do nothing
+            return;
+        }
+
+        const row = document.createElement('tr');
+        
+        // Determine row class based on event type and motion status
+        let rowClass = '';
+        if (event.motion_status === 'Collided' || event.motion_status === 'Harsh Braking' || event.motion_status === 'Sudden Stop Detected!' || event.event_type === 'Near Collision') {
+            rowClass = 'table-danger'; // Red for critical motion statuses or near collision
+        } else if (event.event_type && event.event_type.includes('Anomaly')) {
+            rowClass = 'table-warning'; // Yellow for anomalies
+        } else if (event.event_type === 'Frontier') {
+            rowClass = 'table-info'; // Light blue for non-critical frontier vehicles
+        } else { // Default case for 'Tracked' and other events
+             rowClass = 'table-active'; // Gray for regular tracked vehicles
+        }
+        row.className = rowClass;
+
+        row.innerHTML = `
+            <td>${event.id !== undefined ? event.id : 'N/A'}</td>
+            <td>${event.timestamp !== undefined ? event.timestamp : 'N/A'}</td>
+            <td>${event.event_type !== undefined ? event.event_type : 'N/A'}</td>
+            <td>${event.vehicle_id !== undefined ? event.vehicle_id : 'N/A'}</td>
+            <td>${event.motion_status !== undefined ? event.motion_status : 'N/A'}</td>
+            <td>${event.ttc !== undefined && event.ttc !== null && event.ttc !== 'N/A' ? parseFloat(event.ttc).toFixed(2) : 'N/A'}</td>
+            <td>${event.latitude !== undefined && event.longitude !== undefined ? `${parseFloat(event.latitude).toFixed(6)}, ${parseFloat(event.longitude).toFixed(6)}` : 'N/A'}</td>
+        `;
+        targetTableBody.insertBefore(row, targetTableBody.firstChild); // Add to the top of the table
+        
+        // Show alert for critical events based on the corrected frontend logic
+        // Removed this block to stop pop-up notifications
+        // if (event.motion_status === 'Collided' || event.motion_status === 'Harsh Braking' || event.motion_status === 'Sudden Stop Detected!' || event.event_type === 'Near Collision') {
+        //      showAlert(`Critical Event: ${event.event_type} - ${event.motion_status}`, 'danger');
+        // }
+    });
+
+    socket.on('gps_update', (data) => {
+        console.log("📡 GPS Data Received:", data);  // <== ADD THIS LINE
+        // Only update GPS data display if the Live Streaming tab is active
+        const liveTab = document.getElementById('livestream-tab');
+        if (liveTab && liveTab.classList.contains('active')) {
+            updateGPSData(data);
+        }
+    });
+
+
+    socket.on('error', (data) => {
+        showAlert(data.message, 'danger');
+    });
+
+});
+
+// Handle live stream frames
+socket.on('frame', (data) => {
+    const videoFeed = document.getElementById('live-video-feed');
+    if (videoFeed) {
+        const blob = new Blob([data.frame], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        videoFeed.src = url;
+    }
 });

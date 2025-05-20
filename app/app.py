@@ -25,6 +25,7 @@ import threading
 import serial
 import time
 import random
+import shutil
 
 # Import blockchain blueprint
 from app.blockchain import blockchain_bp
@@ -65,74 +66,151 @@ current_latitude = 0.0
 current_longitude = 0.0
 gps_connected = False
 serial_port = None
-SERIAL_PORT_NAME = 'COM5' # TODo: Replace with your actual serial port name
+SERIAL_PORT_NAME = 'COM5' # Set the serial port name to COM5
 BAUDRATE = 115200 # Match the Serial.begin() baud rate in your Arduino sketch
+
+# Replace the MAX_STORED_VIDEOS constant with a single video file name
+CURRENT_VIDEO_FILE = "current_video.mp4"
 
 def read_gps_data_from_serial(port, baudrate):
     global current_latitude, current_longitude, gps_connected, serial_port
     logger.info(f"Attempting to connect to serial port {port} at {baudrate} baud.")
+
     try:
         serial_port = serial.Serial(port, baudrate)
         gps_connected = True
         logger.info(f"Successfully connected to serial port {port}.")
         line = ''
+        lat = None
+        lon = None
+
         while gps_connected:
             if serial_port.in_waiting > 0:
                 char = serial_port.read().decode('utf-8', errors='ignore')
                 line += char
+
                 if char == '\n':
-                    logger.debug(f"Received serial data: {line.strip()}")
-                    if line.startswith("Latitude:"):
+                    clean_line = line.strip()
+                    logger.debug(f"Received serial data: {clean_line}")
+
+                    if clean_line.startswith("Latitude:"):
                         try:
-                            current_latitude = float(line.split(":")[1].strip())
-                            # Emit GPS update when new latitude is received
-                            socketio.emit('gps_update', {
-                                'latitude': current_latitude,
-                                'longitude': current_longitude,
-                                'connected': True
-                            })
+                            lat = float(clean_line.split(":")[1].strip())
                         except ValueError:
-                            logger.error(f"Could not parse latitude from line: {line.strip()}")
-                    elif line.startswith("Longitude:"):
+                            logger.error(f"Could not parse latitude from: {clean_line}")
+
+                    elif clean_line.startswith("Longitude:"):
                         try:
-                            current_longitude = float(line.split(":")[1].strip())
-                            # Emit GPS update when new longitude is received
-                            socketio.emit('gps_update', {
-                                'latitude': current_latitude,
-                                'longitude': current_longitude,
-                                'connected': True
-                            })
+                            lon = float(clean_line.split(":")[1].strip())
                         except ValueError:
-                            logger.error(f"Could not parse longitude from line: {line.strip()}")
-                    elif "Waiting for GPS signal..." in line:
+                            logger.error(f"Could not parse longitude from: {clean_line}")
+
+                    elif "Waiting for GPS signal..." in clean_line:
                         logger.info("GPS signal not acquired yet.")
+                        gps_connected = False
+                        lat = lon = None
                         socketio.emit('gps_update', {
                             'latitude': 0.0,
                             'longitude': 0.0,
                             'connected': False
                         })
+
+                    # Emit only when both lat and lon are ready
+                    if lat is not None and lon is not None:
+                        current_latitude = lat
+                        current_longitude = lon
+                        socketio.emit('gps_update', {
+                            'latitude': lat,
+                            'longitude': lon,
+                            'connected': True
+                        })
+                        print(f"📡 Emitting GPS: lat={current_latitude}, lon={current_longitude}")
+                        lat = lon = None  # Reset for next round
+
                     line = ''
-            time.sleep(0.01) # Small delay to prevent high CPU usage
+
+            time.sleep(0.01)
+
     except serial.SerialException as e:
         logger.error(f"Serial port error: {e}")
-        gps_connected = False
-        current_latitude = 0.0
-        current_longitude = 0.0
-        socketio.emit('gps_update', {
-            'latitude': 0.0,
-            'longitude': 0.0,
-            'connected': False
-        })
     except Exception as e:
-        logger.error(f"An unexpected error occurred during serial reading: {e}")
-        gps_connected = False
-        current_latitude = 0.0
-        current_longitude = 0.0
-        socketio.emit('gps_update', {
-            'latitude': 0.0,
-            'longitude': 0.0,
-            'connected': False
-        })
+        logger.error(f"Unexpected error in GPS thread: {e}")
+
+    gps_connected = False
+    current_latitude = 0.0
+    current_longitude = 0.0
+    socketio.emit('gps_update', {
+        'latitude': 0.0,
+        'longitude': 0.0,
+        'connected': False
+    })
+
+
+# def read_gps_data_from_serial(port, baudrate):
+#     global current_latitude, current_longitude, gps_connected, serial_port
+#     logger.info(f"Attempting to connect to serial port {port} at {baudrate} baud.")
+#     try:
+#         serial_port = serial.Serial(port, baudrate)
+#         gps_connected = True
+#         logger.info(f"Successfully connected to serial port {port}.")
+#         line = ''
+#         while gps_connected:
+#             if serial_port.in_waiting > 0:
+#                 char = serial_port.read().decode('utf-8', errors='ignore')
+#                 line += char
+#                 if char == '\n':
+#                     logger.debug(f"Received serial data: {line.strip()}")
+#                     if line.startswith("Latitude:"):
+#                         try:
+#                             current_latitude = float(line.split(":")[1].strip())
+#                             # Emit GPS update when new latitude is received
+#                             socketio.emit('gps_update', {
+#                                 'latitude': current_latitude,
+#                                 'longitude': current_longitude,
+#                                 'connected': True
+#                             })
+#                         except ValueError:
+#                             logger.error(f"Could not parse latitude from line: {line.strip()}")
+#                     elif line.startswith("Longitude:"):
+#                         try:
+#                             current_longitude = float(line.split(":")[1].strip())
+#                             # Emit GPS update when new longitude is received
+#                             socketio.emit('gps_update', {
+#                                 'latitude': current_latitude,
+#                                 'longitude': current_longitude,
+#                                 'connected': True
+#                             })
+#                         except ValueError:
+#                             logger.error(f"Could not parse longitude from line: {line.strip()}")
+#                     elif "Waiting for GPS signal..." in line:
+#                         logger.info("GPS signal not acquired yet.")
+#                         socketio.emit('gps_update', {
+#                             'latitude': 0.0,
+#                             'longitude': 0.0,
+#                             'connected': False
+#                         })
+#                     line = ''
+#             time.sleep(0.01) # Small delay to prevent high CPU usage
+#     except serial.SerialException as e:
+#         logger.error(f"Serial port error: {e}")
+#         gps_connected = False
+#         current_latitude = 0.0
+#         current_longitude = 0.0
+#         socketio.emit('gps_update', {
+#             'latitude': 0.0,
+#             'longitude': 0.0,
+#             'connected': False
+#         })
+#     except Exception as e:
+#         logger.error(f"An unexpected error occurred during serial reading: {e}")
+#         gps_connected = False
+#         current_latitude = 0.0
+#         current_longitude = 0.0
+#         socketio.emit('gps_update', {
+#             'latitude': 0.0,
+#             'longitude': 0.0,
+#             'connected': False
+#         })
 
 class EventLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -376,30 +454,75 @@ def calculate_iou(box1, box2):
 def index():
     return render_template("index.html")
 
+def handle_video_upload(new_video_path):
+    """Handle video upload by replacing the current video"""
+    current_video_path = os.path.join(UPLOAD_FOLDER, CURRENT_VIDEO_FILE)
+    try:
+        # Remove existing video if it exists
+        if os.path.exists(current_video_path):
+            os.remove(current_video_path)
+            logger.info(f"Removed existing video: {current_video_path}")
+        
+        # Move the new video to the standard name
+        shutil.move(new_video_path, current_video_path)
+        logger.info(f"New video saved as: {current_video_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error handling video upload: {e}")
+        return False
+
 @app.route("/upload", methods=["POST"])
 def upload_video():
     if 'video' not in request.files:
-        return jsonify({'error': 'No video file provided'}), 400
-    
+        return jsonify({'error': 'No video file uploaded'}), 400
+
     video = request.files['video']
     if video.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    # Generate unique filename
-    filename = f"{uuid.uuid4()}_{video.filename}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    try:
-        video.save(filepath)
-        return jsonify({'video_id': filename})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Empty filename'}), 400
 
-@app.route("/video_feed/<filename>")
-def video_feed(filename):
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    logger.info(f"Starting video feed for: {file_path}")
-    return Response(process_video(file_path),
+    # Validate file type
+    if not video.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        return jsonify({'error': 'Invalid file type. Please upload MP4, AVI, MOV, or MKV files only.'}), 400
+
+    temp_filename = f"temp_{uuid.uuid4()}.mp4"
+    temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+
+    try:
+        # Save uploaded file temporarily
+        video.save(temp_filepath)
+
+        # Verify the file was saved and is not empty
+        if not os.path.exists(temp_filepath) or os.path.getsize(temp_filepath) == 0:
+            return jsonify({'error': 'Failed to save video file'}), 500
+
+        # Move it and rename it to final name
+        if handle_video_upload(temp_filepath):
+            return jsonify({
+                'video_id': CURRENT_VIDEO_FILE,
+                'message': 'Video uploaded successfully'
+            })
+        else:
+            return jsonify({'error': 'Failed to process video'}), 500
+    except Exception as e:
+        logger.error(f"Exception during upload: {e}")
+        # Clean up temp file if it exists
+        if os.path.exists(temp_filepath):
+            try:
+                os.remove(temp_filepath)
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up temp file: {cleanup_error}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+
+# Modify the video_feed route to use the current video
+@app.route("/video_feed")
+def video_feed():
+    video_path = os.path.join(app.config["UPLOAD_FOLDER"], CURRENT_VIDEO_FILE)
+    if not os.path.exists(video_path):
+        return jsonify({'error': 'No video available'}), 404
+        
+    logger.info(f"Starting video feed for: {video_path}")
+    return Response(process_video(video_path),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
 def process_video(video_path):
@@ -524,10 +647,9 @@ def process_video(video_path):
                         if track_id in prev_tracks:
                             prev_pos = prev_tracks[track_id]
                             dist_moved = ((current_pos[0] - prev_pos[0]) ** 2 + (current_pos[1] - prev_pos[1]) ** 2) ** 0.5
-                            speed_px_per_frame = dist_moved / FRAME_TIME
-                            if speed_px_per_frame < 0.5:
+                            if dist_moved < 0.5:
                                 vehicle_motion = "Sudden Stop Detected!"
-                            elif speed_px_per_frame > 5.0:
+                            elif dist_moved > 5.0:
                                 vehicle_motion = "Harsh Braking"
                         prev_tracks[track_id] = current_pos
 
@@ -583,8 +705,9 @@ def process_video(video_path):
                         id_bg_pos1 = (x1 - padding, id_pos[1] - id_height - padding)
                         id_bg_pos2 = (x1 + max_width + padding, id_pos[1] + padding)
 
-                        is_critical = vehicle_motion in ["Collided", "Harsh Braking", "Sudden Stop Detected!"]
-                        bg_color = (0, 0, 255) if is_critical else (0, 0, 0)
+                        is_critical_event = vehicle_motion in ["Collided", "Harsh Braking", "Sudden Stop Detected!"] or event_type == "Near Collision" or "Anomaly" in event_type;
+
+                        bg_color = (0, 0, 255) if is_critical_event else (0, 0, 0)
                         alpha = 0.6
 
                         overlay = frame.copy()
@@ -620,7 +743,7 @@ def process_video(video_path):
                                     motion_status=vehicle_motion)
 
                     # Only add critical events to the database
-                    if is_critical:
+                    if is_critical_event:
                         db.session.add(event)
                         logger.debug(f"Added critical event to DB: {event.vehicle_id}, {event.event_type}, {event.motion_status}, {event.timestamp}")
                     else:
@@ -638,7 +761,7 @@ def process_video(video_path):
                             "latitude": gps_data["latitude"],
                             "longitude": gps_data["longitude"],
                             "motion_status": vehicle_motion,
-                            "is_critical": is_critical
+                            "is_critical": is_critical_event
                         }
                         socketio.emit('new_event', event_data)
                     except Exception as e:
@@ -889,6 +1012,184 @@ def get_gps_data():
             "speed": 0.0,
             "connected": False
         }
+
+def process_live_stream(camera_id):
+    cap = cv2.VideoCapture(camera_id)
+    if not cap.isOpened():
+        logger.error(f"Failed to open camera: {camera_id}")
+        return
+
+    FPS = 30  # Assuming 30 FPS for live stream
+    FRAME_TIME = 1 / FPS
+    prev_frame = None
+    frame_count = 0
+    prev_tracks = {}
+
+    logger.info(f"Camera opened: FPS={FPS}, FRAME_TIME={FRAME_TIME}")
+
+    try:
+        with app.app_context():
+            while cap.isOpened():
+                success, frame = cap.read()
+                if not success:
+                    logger.error("Failed to read frame from camera")
+                    break
+
+                frame_count += 1
+                if frame_count % 2 == 0:  # Process every other frame to reduce load
+                    continue
+
+                frame = cv2.resize(frame, (640, 480))
+                height, width, _ = frame.shape
+                center_x = width // 2
+
+                # Lane detection
+                lane_lines = detect_lanes(frame)
+                left_lane_x, right_lane_x = get_ego_lane_bounds(lane_lines, width, height)
+                for x1, y1, x2, y2 in lane_lines:
+                    cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+                # Get GPS data
+                gps_data = get_gps_data()
+                ego_speed = gps_data["speed"]
+                motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "Normal Motion"
+                prev_frame = frame.copy()
+
+                # Calculate ego vehicle speed using GPS data
+                lat, lon = gps_data["latitude"], gps_data["longitude"]
+                ego_speed_gps = calculate_speed_from_gps(ego_gps_history, lat, lon, frame_count, FRAME_TIME)
+
+                # Draw speedometer
+                draw_speedometer(frame, ego_speed_gps, width - 80, height - 80, radius=50)
+
+                # Object detection and tracking
+                results = model(frame, verbose=False)[0]
+                detections = []
+                for r in results.boxes.data.tolist():
+                    x1, y1, x2, y2, score, class_id = r
+                    if score > 0.5:  # Confidence threshold
+                        detections.append([x1, y1, x2, y2, score])
+
+                if len(detections) > 0:
+                    tracked_objects = tracker.update(np.array(detections))
+                    frontier_vehicle = None
+                    min_distance = float('inf')
+
+                    for track in tracked_objects:
+                        if len(track) < 5:
+                            continue
+                        x1, y1, x2, y2, track_id = map(int, track)
+                        color = (255, 0, 0)
+                        event_type = "Tracked"
+                        ttc = None
+                        vehicle_motion = "Normal Motion" if motion_status == "Normal Motion" else motion_status
+
+                        # Calculate distance to ego vehicle
+                        distance = height - y2
+                        if distance < min_distance:
+                            min_distance = distance
+                            frontier_vehicle = track
+
+                        # Check for critical events
+                        if np.array_equal(track, frontier_vehicle):
+                            color = (0, 255, 0)
+                            event_type = "Frontier"
+                            y_center = (y1 + y2) // 2
+                            frontier_speed = estimate_frontier_speed(track_id, y_center, frame_count, FRAME_TIME)
+                            ttc = calculate_ttc(ego_speed, frontier_speed, distance) if frontier_speed and ego_speed else float('inf')
+                            
+                            if ttc < 2:
+                                event_type = "Near Collision"
+                            
+                            x_center = (x1 + x2) // 2
+                            pred_x, pred_y = kalman_tracker.predict_next_position(x_center, y_center)
+                            cv2.circle(frame, (pred_x, pred_y), 5, (0, 255, 0), -1)
+
+                            # Anomaly detection
+                            features = pd.DataFrame([[frontier_speed, 0, 0]], columns=["v_Vel", "v_Acc", "Lane_ID"])
+                            scaled_features_array = scaler.transform(features)
+                            scaled_features = pd.DataFrame(scaled_features_array, columns=["v_Vel", "v_Acc", "Lane_ID"])
+                            if anomaly_model.predict(scaled_features)[0] == -1:
+                                event_type = f"{event_type} - Anomaly"
+
+                        # Draw bounding box and labels
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                        
+                        # Add event to database if critical
+                        is_critical_event = vehicle_motion in ["Collided", "Harsh Braking", "Sudden Stop Detected!"] or event_type == "Near Collision" or "Anomaly" in event_type;
+
+                        if is_critical_event:
+                            event = EventLog(
+                                vehicle_id=track_id,
+                                event_type=event_type,
+                                x1=x1, y1=y1, x2=x2, y2=y2,
+                                ttc=ttc,
+                                latitude=gps_data["latitude"],
+                                longitude=gps_data["longitude"],
+                                motion_status=vehicle_motion
+                            )
+                            db.session.add(event)
+                            
+                            # Emit event through WebSocket
+                            event_data = {
+                                "id": event.id,
+                                "vehicle_id": event.vehicle_id,
+                                "event_type": event_type,
+                                "timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                "ttc": "N/A" if ttc is None or ttc == float('inf') else ttc,
+                                "latitude": gps_data["latitude"],
+                                "longitude": gps_data["longitude"],
+                                "motion_status": vehicle_motion,
+                                "is_critical": is_critical_event
+                            }
+                            socketio.emit('new_event', event_data)
+
+                # Commit database changes periodically
+                if frame_count % 30 == 0:
+                    try:
+                        db.session.commit()
+                    except Exception as e:
+                        logger.error(f"Commit failed: {e}")
+
+                # Encode and send frame
+                success, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+                if success:
+                    frame_bytes = buffer.tobytes()
+                    socketio.emit('frame', {'frame': frame_bytes})
+
+    except Exception as e:
+        logger.error(f"Error in process_live_stream: {e}")
+    finally:
+        cap.release()
+        with app.app_context():
+            db.session.remove()
+
+@socketio.on('start_live_processing')
+def handle_live_processing(data):
+    device_id = data.get('deviceId')
+    if not device_id:
+        socketio.emit('error', {'message': 'No device ID provided'})
+        return
+    
+    # Start live stream processing in a background thread
+    threading.Thread(target=process_live_stream, args=(device_id,)).start()
+
+@socketio.on('stop_live_processing')
+def handle_stop_live_processing():
+    # The processing will stop when the camera is released
+    pass
+
+# Add cleanup task to run periodically
+def start_cleanup_task():
+    while True:
+        cleanup_old_videos()
+        time.sleep(VIDEO_CLEANUP_INTERVAL)
+
+# Start cleanup task in a background thread
+cleanup_thread = threading.Thread(target=start_cleanup_task)
+cleanup_thread.daemon = True
+cleanup_thread.start()
 
 __all__ = ['app', 'socketio']
 
