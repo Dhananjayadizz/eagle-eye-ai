@@ -307,14 +307,21 @@ socket.on('new_event', (event) => {
     targetTableBody.insertBefore(row, targetTableBody.firstChild); // Add to the top of the table
 });
 
+// socket.on('gps_update', (data) => {
+//     console.log("📡 GPS Data Received:", data);  // <== ADD THIS LINE
+//     // Only update GPS data display if the Live Streaming tab is active
+//     const liveTab = document.getElementById('livestream-tab');
+//     if (liveTab && liveTab.classList.contains('active')) {
+//         updateGPSData(data);
+//     }
+// });
+
 socket.on('gps_update', (data) => {
-    console.log("📡 GPS Data Received:", data);  // <== ADD THIS LINE
-    // Only update GPS data display if the Live Streaming tab is active
-    const liveTab = document.getElementById('livestream-tab');
-    if (liveTab && liveTab.classList.contains('active')) {
-        updateGPSData(data);
-    }
+    console.log("📡 GPS Data Received:", data);
+    updateGPSData(data);  // Always update regardless of tab
 });
+
+
 
 
 socket.on('error', (data) => {
@@ -351,11 +358,17 @@ function updateCriticalEventsTable() {
             <td>${event.vehicle_id}</td>
             <td>${event.motion_status}</td>
             <td>${event.ttc !== 'N/A' ? event.ttc + 's' : 'N/A'}</td>
+            <td>${event.latitude.toFixed(6)}, ${event.longitude.toFixed(6)}</td>  <!-- 👈 THIS LINE -->
         </tr>
     `).join('');
 }
 
 function updateGPSData(data) {
+    console.log('updateGPSData called with data:', data);
+    if (!gpsData) {
+        console.error('GPS Data element not found!');
+        return;
+    }
     if (data.connected) {
         gpsData.innerHTML = `
             <div class="text-success mb-2">GPS Connected</div>

@@ -16,7 +16,7 @@ web3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER))
 if not web3.is_connected():
     print("❌ ERROR: Web3 connection failed. Ensure Ganache is running.")
 
-CONTRACT_ADDRESS = "0x8cbcdAEdeCCEfaacB252eFE959220266eD2B4b82"
+CONTRACT_ADDRESS = "0xB1B5Ce3A53a47e25Cd2dEb60Ff95eD8Bd41983Ae"
 SENDER_ACCOUNT = web3.eth.accounts[0]
 
 # Check if contract code exists at the address
