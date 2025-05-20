@@ -25,6 +25,15 @@ let stream = null;
 const storedVideosList = null;
 const clearVideosButton = null;
 
+// Pedestrian Analysis Variables
+let pedestrianEvents = [];
+const pedestrianVideoInput = document.getElementById('pedestrian-video-input');
+const pedestrianUploadForm = document.getElementById('pedestrian-upload-form');
+const pedestrianVideoContainer = document.getElementById('pedestrian-video-container');
+const pedestrianEventsTable = document.getElementById('pedestrian-events-table');
+const pedestrianUploadLoadingBar = document.getElementById('pedestrian-upload-loading-bar');
+const pedestrianProgressBar = pedestrianUploadLoadingBar.querySelector('.progress-bar');
+
 async function populateCameraOptions() {
     try {
         await navigator.mediaDevices.getUserMedia({ video: true }); // ask permission
@@ -618,4 +627,117 @@ socket.on('frame', (data) => {
         const url = URL.createObjectURL(blob);
         videoFeed.src = url;
     }
+});
+
+// Pedestrian Analysis Functions
+function addPedestrianEvent(event) {
+    pedestrianEvents.unshift(event);
+    updatePedestrianEventsTable();
+}
+
+function updatePedestrianEventsTable() {
+    if (!pedestrianEventsTable) return;
+    
+    pedestrianEventsTable.innerHTML = pedestrianEvents.map(event => `
+        <tr class="${getPedestrianEventRowClass(event)}">
+            <td>${event.id}</td>
+            <td>${event.timestamp}</td>
+            <td>${event.pedestrian_id}</td>
+            <td>${event.intent_score.toFixed(2)}</td>
+            <td>${event.speed.toFixed(2)} px/frame</td>
+            <td>${getPedestrianStatus(event.intent_score)}</td>
+            <td>(${event.location.x}, ${event.location.y})</td>
+        </tr>
+    `).join('');
+}
+
+function getPedestrianEventRowClass(event) {
+    if (event.intent_score >= 0.7) {
+        return 'table-danger'; // Red for high intent
+    } else if (event.intent_score >= 0.5) {
+        return 'table-warning'; // Orange for medium intent
+    }
+    return 'table-success'; // Green for low intent
+}
+
+function getPedestrianStatus(intentScore) {
+    if (intentScore >= 0.7) {
+        return 'High Risk';
+    } else if (intentScore >= 0.5) {
+        return 'Medium Risk';
+    }
+    return 'Low Risk';
+}
+
+function exportPedestrianEvents() {
+    if (pedestrianEvents.length === 0) {
+        showAlert('No pedestrian events to export', 'warning');
+        return;
+    }
+    window.location.href = '/export_pedestrian_events';
+}
+
+function clearPedestrianFiles() {
+    fetch('/clear_pedestrian_files', {
+        method: 'POST',
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Pedestrian files cleared successfully', 'success');
+        } else {
+            showAlert('Failed to clear pedestrian files', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error clearing pedestrian files', 'danger');
+    });
+}
+
+// Handle pedestrian video upload
+pedestrianUploadForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const file = pedestrianVideoInput.files[0];
+    if (!file) {
+        showAlert('Please select a video file', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('video', file);
+
+    pedestrianUploadLoadingBar.style.display = 'block';
+    pedestrianProgressBar.style.width = '0%';
+
+    fetch('/upload_pedestrian_video', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Video uploaded successfully', 'success');
+            pedestrianVideoContainer.innerHTML = `
+                <video id="pedestrian-video" controls class="w-100">
+                    <source src="${data.video_url}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        } else {
+            showAlert(data.error || 'Failed to upload video', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error uploading video', 'danger');
+    })
+    .finally(() => {
+        pedestrianUploadLoadingBar.style.display = 'none';
+    });
+});
+
+// Socket event handler for pedestrian events
+socket.on('pedestrian_event', (event) => {
+    addPedestrianEvent(event);
 });
