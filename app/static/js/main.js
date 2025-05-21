@@ -283,17 +283,29 @@ socket.on('new_event', (event) => {
     const row = document.createElement('tr');
     
     // Determine row class based on event type and motion status
-    let rowClass = '';
-    if (event.motion_status === 'Collided' || event.motion_status === 'Harsh Braking' || event.motion_status === 'Sudden Stop Detected!' || event.event_type === 'Near Collision') {
-        rowClass = 'table-danger'; // Red for critical motion statuses or near collision
+    // let rowClass = '';
+    // if (event.motion_status === 'Collided' || event.motion_status === 'Harsh Braking' || event.motion_status === 'Sudden Stop Detected!' || event.event_type === 'Near Collision') {
+    //     rowClass = 'table-danger'; // Red for critical motion statuses or near collision
+    // } else if (event.event_type && event.event_type.includes('Anomaly')) {
+    //     rowClass = 'table-warning'; // Yellow for anomalies
+    // } else if (event.event_type === 'Frontier') {
+    //     rowClass = 'table-info'; // Light blue for non-critical frontier vehicles
+    // } else { // Default case for 'Tracked' and other events
+    //      rowClass = 'table-active'; // Gray for regular tracked vehicles
+    // }
+    // row.className = rowClass;
+
+    let rowClass = 'custom-row'; // all rows start with dark base
+
+    if (event.motion_status === 'Collided' || event.event_type === 'Near Collision') {
+        rowClass += ' border-red';
     } else if (event.event_type && event.event_type.includes('Anomaly')) {
-        rowClass = 'table-warning'; // Yellow for anomalies
+        rowClass += ' border-yellow';
     } else if (event.event_type === 'Frontier') {
-        rowClass = 'table-info'; // Light blue for non-critical frontier vehicles
-    } else { // Default case for 'Tracked' and other events
-         rowClass = 'table-active'; // Gray for regular tracked vehicles
+        rowClass += ' border-blue';
     }
     row.className = rowClass;
+
 
     row.innerHTML = `
         <td>${event.id !== undefined ? event.id : 'N/A'}</td>

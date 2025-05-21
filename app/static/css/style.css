@@ -514,3 +514,53 @@ body {
     from { background-position: 1rem 0; }
     to { background-position: 0 0; }
 } 
+
+
+.table-dark-override {
+    background-color: #111111 !important;
+    color: #ffffff !important;
+}
+
+
+/* Base style for all table rows (dark background) */
+.table-dark-override tr {
+    background-color: #1a1a1a !important; /* Dark gray */
+    color: #ffffff !important;
+}
+
+/* Left border for critical events */
+.table-dark-override .table-danger {
+    border-left: 5px solid #ff4d4d !important; /* Red */
+}
+
+/* Left border for anomaly events */
+.table-dark-override .table-warning {
+    border-left: 5px solid #ffcc00 !important; /* Yellow */
+}
+
+/* Left border for frontier events */
+.table-dark-override .table-info {
+    border-left: 5px solid #00ccff !important; /* Light blue */
+}
+
+/* Left border for normal events */
+.table-dark-override .table-active {
+    border-left: 5px solid #666666 !important; /* Gray */
+}
+
+
+.custom-row {
+    background-color: #111 !important;
+    color: white;
+    border-left: 6px solid transparent;
+}
+
+.border-red {
+    border-left: 6px solid #ff4d4d;
+}
+.border-yellow {
+    border-left: 6px solid #ffc107;
+}
+.border-blue {
+    border-left: 6px solid #17a2b8;
+}

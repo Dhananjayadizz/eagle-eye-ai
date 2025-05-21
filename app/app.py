@@ -26,7 +26,7 @@ import serial
 import time
 import random
 import shutil
-
+import re
 # Import blockchain blueprint
 from app.blockchain import blockchain_bp
 
@@ -158,6 +158,85 @@ CURRENT_VIDEO_FILE = "current_video.mp4"
 #     })
 
 
+# def read_gps_data_from_serial(port, baudrate):
+#     global serial_port
+#     logger.info(f"Connecting to GPS on {port} at {baudrate}...")
+
+#     try:
+#         serial_port = serial.Serial(port, baudrate, timeout=1)
+#         logger.info("Serial port opened.")
+#         with gps_lock:
+#             gps_data["connected"] = True
+
+#         line = ''
+#         lat, lon = None, None
+
+#         while True:
+#             if serial_port.in_waiting > 0:
+#                 char = serial_port.read().decode('utf-8', errors='ignore')
+#                 line += char
+
+#                 if char == '\n':
+#                     clean_line = line.strip()
+#                     logger.debug(f"📥 Raw line: {clean_line}")
+
+#                     if clean_line.startswith("Latitude:"):
+#                         try:
+#                             lat = float(clean_line.split(":")[1].strip())
+#                             logger.debug(f"✅ Parsed Latitude: {lat}")
+#                         except Exception as e:
+#                             logger.error(f"❌ Failed to parse latitude: {clean_line} | {e}")
+
+#                     elif clean_line.startswith("Longitude:"):
+#                         try:
+#                             lon = float(clean_line.split(":")[1].strip())
+#                             logger.debug(f"✅ Parsed Longitude: {lon}")
+#                         except Exception as e:
+#                             logger.error(f"❌ Failed to parse longitude: {clean_line} | {e}")
+
+#                     elif "Waiting for GPS signal..." in clean_line:
+#                         logger.warning("⚠️ GPS signal not locked yet.")
+#                         with gps_lock:
+#                             gps_data.update({
+#                                 "latitude": 0.0,
+#                                 "longitude": 0.0,
+#                                 "connected": False
+#                             })
+#                         socketio.emit('gps_update', gps_data)
+
+#                     # Emit only if both values were found
+#                     if lat is not None and lon is not None:
+#                         with gps_lock:
+#                             gps_data.update({
+#                                 "latitude": lat,
+#                                 "longitude": lon,
+#                                 "connected": True
+#                             })
+#                         logger.info(f"📡 Emitting GPS: lat={lat}, lon={lon}")
+#                         socketio.emit('gps_update', gps_data)
+#                         print(f"📡 [Python] GPS Emitted: {gps_data['latitude']}, {gps_data['longitude']}")
+#                         lat, lon = None, None  # reset
+
+#                     line = ''  # clear after processing
+
+#             time.sleep(0.01)
+
+#     except serial.SerialException as e:
+#         logger.error(f"❌ Serial port error: {e}")
+#     except Exception as e:
+#         logger.error(f"❌ Unexpected GPS thread error: {e}")
+
+#     with gps_lock:
+#         gps_data.update({
+#             "latitude": 0.0,
+#             "longitude": 0.0,
+#             "connected": False
+#         })
+#     socketio.emit('gps_update', gps_data)
+
+
+
+
 def read_gps_data_from_serial(port, baudrate):
     global serial_port
     logger.info(f"Connecting to GPS on {port} at {baudrate}...")
@@ -168,71 +247,39 @@ def read_gps_data_from_serial(port, baudrate):
         with gps_lock:
             gps_data["connected"] = True
 
-        line = ''
-        lat, lon = None, None
-
         while True:
             if serial_port.in_waiting > 0:
-                char = serial_port.read().decode('utf-8', errors='ignore')
-                line += char
+                line = serial_port.readline().decode('utf-8', errors='ignore').strip()
+                logger.debug(f"Raw GPS line: {line}")
 
-                if char == '\n':
-                    clean_line = line.strip()
-                    logger.debug(f"📥 Raw line: {clean_line}")
+                lat_match = re.search(r'Latitude:(-?\d+\.\d+)', line)
+                lon_match = re.search(r'Longitude:(-?\d+\.\d+)', line)
 
-                    if clean_line.startswith("Latitude:"):
-                        try:
-                            lat = float(clean_line.split(":")[1].strip())
-                            logger.debug(f"✅ Parsed Latitude: {lat}")
-                        except Exception as e:
-                            logger.error(f"❌ Failed to parse latitude: {clean_line} | {e}")
+                if lat_match:
+                    with gps_lock:
+                        gps_data['latitude'] = float(lat_match.group(1))
+                        gps_data['connected'] = True
 
-                    elif clean_line.startswith("Longitude:"):
-                        try:
-                            lon = float(clean_line.split(":")[1].strip())
-                            logger.debug(f"✅ Parsed Longitude: {lon}")
-                        except Exception as e:
-                            logger.error(f"❌ Failed to parse longitude: {clean_line} | {e}")
+                if lon_match:
+                    with gps_lock:
+                        gps_data['longitude'] = float(lon_match.group(1))
+                        gps_data['connected'] = True
 
-                    elif "Waiting for GPS signal..." in clean_line:
-                        logger.warning("⚠️ GPS signal not locked yet.")
-                        with gps_lock:
-                            gps_data.update({
-                                "latitude": 0.0,
-                                "longitude": 0.0,
-                                "connected": False
-                            })
-                        socketio.emit('gps_update', gps_data)
+                    # Emit once both are likely to be updated
+                    socketio.emit('gps_update', gps_data)
 
-                    # Emit only if both values were found
-                    if lat is not None and lon is not None:
-                        with gps_lock:
-                            gps_data.update({
-                                "latitude": lat,
-                                "longitude": lon,
-                                "connected": True
-                            })
-                        logger.info(f"📡 Emitting GPS: lat={lat}, lon={lon}")
-                        socketio.emit('gps_update', gps_data)
-                        print(f"📡 [Python] GPS Emitted: {gps_data['latitude']}, {gps_data['longitude']}")
-                        lat, lon = None, None  # reset
+            time.sleep(0.1)
 
-                    line = ''  # clear after processing
-
-            time.sleep(0.01)
-
-    except serial.SerialException as e:
-        logger.error(f"❌ Serial port error: {e}")
     except Exception as e:
-        logger.error(f"❌ Unexpected GPS thread error: {e}")
+        logger.error(f"GPS Serial Error: {e}")
+        with gps_lock:
+            gps_data.update({
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "connected": False
+            })
+        socketio.emit('gps_update', gps_data)
 
-    with gps_lock:
-        gps_data.update({
-            "latitude": 0.0,
-            "longitude": 0.0,
-            "connected": False
-        })
-    socketio.emit('gps_update', gps_data)
 
 
 
@@ -859,7 +906,7 @@ def process_video(video_path):
                             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                             "x1": x1, "y1": y1, "x2": x2, "y2": y2,
                             "ttc": "N/A" if not ttc or ttc == float("inf") else round(ttc, 2),
-                            "latitude": gps["latitude"], "longitude": gps["longitude"],
+                            "latitude": current_gps["latitude"], "longitude": current_gps["longitude"],
                             "motion_status": motion,
                             "is_critical": is_critical_event
                         }
@@ -1109,15 +1156,15 @@ def process_live_stream(camera_id):
                     cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
                 # Get GPS data
-                gps_data = get_gps_data()
-                lat = gps_data["latitude"]
-                lon = gps_data["longitude"]
-                ego_speed = gps_data["speed"]
+                current_gps = get_gps_data()
+                lat = current_gps["latitude"]
+                lon = current_gps["longitude"]
+                ego_speed = current_gps["speed"]
                 motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "Normal Motion"
                 prev_frame = frame.copy()
 
                 # Calculate ego vehicle speed using GPS data
-                lat, lon = gps_data["latitude"], gps_data["longitude"]
+                lat, lon = current_gps["latitude"], current_gps["longitude"]
                 ego_speed_gps = calculate_speed_from_gps(ego_gps_history, lat, lon, frame_count, FRAME_TIME)
 
                 # Draw speedometer
@@ -1185,8 +1232,8 @@ def process_live_stream(camera_id):
                                 event_type=event_type,
                                 x1=x1, y1=y1, x2=x2, y2=y2,
                                 ttc=ttc,
-                                latitude=gps_data["latitude"],
-                                longitude=gps_data["longitude"],
+                                latitude=current_gps["latitude"],
+                                longitude=current_gps["longitude"],
                                 motion_status=vehicle_motion
                             )
                             db.session.add(event)
@@ -1199,8 +1246,8 @@ def process_live_stream(camera_id):
                                 "timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                                 "x1": x1, "y1": y1, "x2": x2, "y2": y2,
                                 "ttc": "N/A" if ttc is None or ttc == float('inf') else ttc,
-                                "latitude": gps_data["latitude"],
-                                "longitude": gps_data["longitude"],
+                                "latitude": current_gps["latitude"],
+                                "longitude": current_gps["longitude"],
                                 "motion_status": vehicle_motion,
                                 "is_critical": is_critical_event
                             }
@@ -1262,7 +1309,7 @@ cleanup_thread = threading.Thread(target=start_cleanup_task)
 cleanup_thread.daemon = True
 cleanup_thread.start()
 
-__all__ = ['app', 'socketio']
+__all__ = ['app', 'socketio', 'read_gps_data_from_serial']
 
 if __name__ == "__main__":
     # Start the serial reading thread
@@ -1271,3 +1318,6 @@ if __name__ == "__main__":
     gps_thread.start()
 
     socketio.run(app, debug=True)
+
+
+
