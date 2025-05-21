@@ -396,16 +396,31 @@ function showAlert(message, type) {
     }, 5000);
 }
 
-function displayUploadedVideoFeed() {
-    // Clear previous video feed
-    uploadedVideoContainer.innerHTML = '';
+// function displayUploadedVideoFeed() {
+//     // Clear previous video feed
+//     uploadedVideoContainer.innerHTML = '';
     
-    // Create video element
+//     // Create video element
+//     const video = document.createElement('img');
+//     video.id = 'uploaded-video-feed';
+//     video.src = '/video_feed';  // Updated to use the new endpoint
+//     uploadedVideoContainer.appendChild(video);
+// }
+
+
+function displayUploadedVideoFeed() {
+    uploadedVideoContainer.innerHTML = '';
+
+    // Add timestamp to force refresh
+    const timestamp = new Date().getTime();
     const video = document.createElement('img');
     video.id = 'uploaded-video-feed';
-    video.src = '/video_feed';  // Updated to use the new endpoint
+    video.src = `/video_feed?t=${timestamp}`; // 💡 this avoids caching
     uploadedVideoContainer.appendChild(video);
 }
+
+
+
 
 // Export functions
 function exportCriticalEvents() {
@@ -754,3 +769,22 @@ pedestrianUploadForm.addEventListener('submit', (e) => {
 socket.on('pedestrian_event', (event) => {
     addPedestrianEvent(event);
 });
+
+socket.on("new_event", function(data) {
+    const tbody = document.getElementById("live-events-table-body");
+    if (!tbody) return;
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+        <td>${data.id ?? 'N/A'}</td>
+        <td>${data.timestamp}</td>
+        <td>${data.event_type}</td>
+        <td>${data.vehicle_id}</td>
+        <td>${data.motion_status}</td>
+        <td>${data.ttc}</td>
+        <td>${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}</td>
+    `;
+
+    tbody.prepend(row);  // Add to top of the table
+});
+
