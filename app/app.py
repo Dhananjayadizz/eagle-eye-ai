@@ -1309,6 +1309,86 @@ cleanup_thread = threading.Thread(target=start_cleanup_task)
 cleanup_thread.daemon = True
 cleanup_thread.start()
 
+
+@app.route("/upload_pedestrian_video", methods=["POST"])
+def upload_pedestrian_video():
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video uploaded'}), 400
+
+    video = request.files['video']
+    if video.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+
+    pedestrian_video_path = os.path.join(app.config["UPLOAD_FOLDER"], "pedestrian_video.mp4")
+    video.save(pedestrian_video_path)
+
+    threading.Thread(target=process_video_pedestrian, args=(pedestrian_video_path,), daemon=True).start()
+
+    return jsonify({"success": True, "video_url": f"/uploads/pedestrian_video.mp4"})
+
+# @app.route('/uploads/<path:filename>')
+# def serve_uploaded_video(filename):
+#     return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+@app.route("/pedestrian_feed")
+def pedestrian_feed():
+    video_path = os.path.join(app.config["UPLOAD_FOLDER"], "pedestrian_video.mp4")
+    if not os.path.exists(video_path):
+        return jsonify({'error': 'No pedestrian video available'}), 404
+
+    return Response(process_video_pedestrian_feed(video_path),
+                    mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+def process_video_pedestrian(video_path):
+    cap = cv2.VideoCapture(video_path)
+    frame_count = 0
+
+    try:
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                break
+
+            frame_count += 1
+            frame = cv2.resize(frame, (640, 480))
+
+            # Run YOLO detection
+            results = model(frame, verbose=False)[0]
+
+            for box in results.boxes:
+                cls_id = int(box.cls[0])
+                if cls_id == 0:  # class 0 is 'person' in COCO
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2
+
+                    # Dummy logic for speed and intent score (placeholder)
+                    speed = random.uniform(1.0, 4.0)  # px/frame
+                    intent_score = min(1.0, max(0.0, speed / 5))  # normalize
+
+                    event = {
+                        "id": frame_count,
+                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "pedestrian_id": frame_count,  # use frame_count as temp ID
+                        "intent_score": intent_score,
+                        "speed": speed,
+                        "location": {"x": cx, "y": cy}
+                    }
+
+                    socketio.emit("pedestrian_event", event)
+                    logger.debug(f"Pedestrian event: {event}")
+
+            time.sleep(0.05)  # ~20 FPS
+
+    except Exception as e:
+        logger.error(f"Error in process_video_pedestrian: {e}")
+    finally:
+        cap.release()
+
+
+
+
 __all__ = ['app', 'socketio', 'read_gps_data_from_serial']
 
 if __name__ == "__main__":

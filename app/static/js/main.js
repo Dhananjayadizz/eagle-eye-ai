@@ -736,6 +736,47 @@ function clearPedestrianFiles() {
 }
 
 // Handle pedestrian video upload
+// pedestrianUploadForm.addEventListener('submit', (e) => {
+//     e.preventDefault();
+//     const file = pedestrianVideoInput.files[0];
+//     if (!file) {
+//         showAlert('Please select a video file', 'warning');
+//         return;
+//     }
+
+//     const formData = new FormData();
+//     formData.append('video', file);
+
+//     pedestrianUploadLoadingBar.style.display = 'block';
+//     pedestrianProgressBar.style.width = '0%';
+
+//     fetch('/upload_pedestrian_video', {
+//         method: 'POST',
+//         body: formData
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         if (data.success) {
+//             showAlert('Video uploaded successfully', 'success');
+//             pedestrianVideoContainer.innerHTML = `
+//                 <video id="pedestrian-video" controls class="w-100">
+//                     <source src="${data.video_url}" type="video/mp4">
+//                     Your browser does not support the video tag.
+//                 </video>
+//             `;
+//         } else {
+//             showAlert(data.error || 'Failed to upload video', 'danger');
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error:', error);
+//         showAlert('Error uploading video', 'danger');
+//     })
+//     .finally(() => {
+//         pedestrianUploadLoadingBar.style.display = 'none';
+//     });
+// });
+
 pedestrianUploadForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const file = pedestrianVideoInput.files[0];
@@ -756,14 +797,20 @@ pedestrianUploadForm.addEventListener('submit', (e) => {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+        if (data.success && data.video_url) {
             showAlert('Video uploaded successfully', 'success');
-            pedestrianVideoContainer.innerHTML = `
-                <video id="pedestrian-video" controls class="w-100">
-                    <source src="${data.video_url}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-            `;
+            pedestrianVideoContainer.innerHTML = '';
+            
+            const videoElement = document.createElement('video');
+            videoElement.id = 'pedestrian-video-feed';
+            videoElement.src = `/uploads/pedestrian_video.mp4?t=${timestamp}`;
+            videoElement.controls = true;
+            videoElement.autoplay = true;
+            videoElement.muted = true;
+            videoElement.className = 'w-100';
+
+pedestrianVideoContainer.appendChild(videoElement);
+
         } else {
             showAlert(data.error || 'Failed to upload video', 'danger');
         }
@@ -776,6 +823,7 @@ pedestrianUploadForm.addEventListener('submit', (e) => {
         pedestrianUploadLoadingBar.style.display = 'none';
     });
 });
+
 
 // Socket event handler for pedestrian events
 socket.on('pedestrian_event', (event) => {
